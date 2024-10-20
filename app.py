@@ -1,24 +1,22 @@
-import random
-from table import Table
-from player import Player
-games = []
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import HTMLResponse
+from socket_manager import SocketManager
 
-def start_game(table: Table) -> None:
-    print(f"Game started by {table.owner}")
-    print(f"Players: {table.players}")
-    print(f"Number of players: {table.curr_players}")
+app = FastAPI()
+socket = SocketManager() 
 
 
-    table.deal_cards()
-    table.make_play()
+@app.websocket("/ws/{room}")
+async def websocket_endpoint(websocket: WebSocket, room: str):
+    await socket.connect(websocket, room)
+    try:
+        while True:
+            await socket.game_actions(room, await websocket.receive_text())
 
-users = ["Alice", "Bob", "Charlie", "David", "Eve", "Frank", "Grace", "Heidi", "Ivan", "Judy"]
-players = random.sample(users, 4)
-players = [Player(player) for player in players]
-owner = random.choice(players)
+    except WebSocketDisconnect:
+        socket.connections[room]['connections'].remove(websocket)
+        del websocket
 
-table = Table(owner)
-table.curr_players = len(players)
-
-table.set_table(players)
-start_game(table)
+@app.get("/")
+async def get():
+    return "Hello World"
