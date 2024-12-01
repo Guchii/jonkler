@@ -1,45 +1,66 @@
 from icecream import ic
+from database.db import get_db
+import database.models as model
+from sqlalchemy.orm import Session
+
+
 class Game:
 
+    users = []
+
+    def __init__(self, game_id = None):
+        self.game_id = game_id
 
 
+    def all_users(self):
+        print(self.users)
 
-    async def playturn():
-        pass
-    async def passturn():
-        pass
-    async def callbluff():
-        pass
-
-    def __init__(self, owner, uid) -> None:
-        self.owner = owner
-        self.players = [(owner, uid)]
-        self.plays = {
-            "playturn": self.playturn,
-            "passturn": self.passturn,
-            "callbluff": self.callbluff,
-        }
-        return None
-
-    async def join_game(self, event):
-        self.players.append((event["user"], event["id"]))
-        ic(self.players)
-        return None
-
-    async def handle_event(self, event):
-        action = event.get("player_action")
-        run_action = self.plays.get(action, None)
-        if run_action:
-            await run_action(event)
     
-    async def start_game(self):
-        self.turn = 0
-        user, uid = self.players[self.turn]
 
-        event = {
-            "turn": user,
-            "uid": uid,
-            "plays": list(self.plays.keys())
-        }
-        return event
 
+def create_game() -> Game:
+    db: Session = next(get_db())
+
+    try:
+        game = model.Game()
+        db.add(game)
+        db.commit()
+        db.refresh(game)
+    finally:
+        db.close()
+
+    return Game(game.game_id)
+
+def get_current_game(game_id: int) -> Game | bool:
+    db: Session = next(get_db())
+    try:
+        game_q = db.query(model.Game).filter(
+            model.Game.game_id == game_id
+        )
+        game = game_q.first()
+    finally:
+        db.close()
+    
+    if not game:
+        return False
+    
+    # Users in game
+
+    db: Session = next(get_db())
+    try:
+        game_q = db.query(model.ActiveGames).filter(
+            model.ActiveGames.game_id == game_id
+        )
+        game_user_data = game_q.all()
+    finally:
+        db.close()
+        
+    existing_game = Game(game.game_id)
+
+    if game_user_data:
+        for record in game_user_data:
+            existing_game.users.append(record.uid)
+    else:
+        print("This game does not have any user")
+    
+    return existing_game
